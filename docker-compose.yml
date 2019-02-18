@@ -1,0 +1,9 @@
+version: "3"
+services:
+  aws-eks-cli:
+    image: brandontsai/aws-eks-cli:latest
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    working_dir: /opt/
+    command: tail -f /dev/null

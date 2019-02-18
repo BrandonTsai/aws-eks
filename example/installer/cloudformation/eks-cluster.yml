@@ -1,0 +1,91 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EKS Cluster
+Parameters:
+  EKSVersion:
+    Description: EKS Version
+    Type: String
+    Default: "1.11"
+    AllowedValues:
+    - "1.10"
+    - "1.11"
+  Owner:
+    Type: String
+    Default: Brandon
+  Project:
+    Type: String
+    Default: EKS-Test
+Resources:
+  EKSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: eksServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - eks.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+  EKSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 security group for EKS
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: VPC-VPCID
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Join [ "", [ !Ref "AWS::StackName", "-sg" ] ]
+      - Key: Owner
+        Value: !Ref Owner
+      - Key: Project
+        Value: !Ref Project
+  EKSSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: EKSSecurityGroup
+    Properties:
+      GroupId:
+        Ref: EKSSecurityGroup
+      IpProtocol: tcp
+      FromPort: '0'
+      ToPort: '65535'
+      SourceSecurityGroupId:
+        Ref: EKSSecurityGroup
+  EKS:
+    Type: "AWS::EKS::Cluster"
+    DependsOn: EKSSecurityGroup
+    Properties:
+      Name: !Ref "AWS::StackName"
+      Version: !Ref EKSVersion
+      RoleArn: !GetAtt EKSRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+        - Ref: EKSSecurityGroup
+        SubnetIds: !Split
+          - ","
+          - Fn::ImportValue:
+              !Sub "PrivateSubnets"
+Outputs:
+  EKSSecurityGroup:
+    Description: EKS Security Group
+    Value: !Ref EKSSecurityGroup
+    Export:
+      Name: !Sub "EKS-SG-ID"
+  EKSRoleArn:
+    Description: The role that EKS will use to create AWS resources for Kubernetes clusters
+    Value: !GetAtt EKSRole.Arn
